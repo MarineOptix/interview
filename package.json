@@ -1,0 +1,19 @@
+{
+  "name": "interview-prompter",
+  "version": "0.2.0",
+  "description": "MVP interview prompter: text question -> LLM suggestion (Groq)",
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5"
+  }
+}

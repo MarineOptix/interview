@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interview Prompter — MVP</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, sans-serif;
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 20px;
+    background: #0f1115;
+    color: #e8e8e8;
+  }
+  h1 { font-size: 18px; color: #7dd3fc; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #9ca3af; margin-bottom: 16px; }
+  textarea {
+    width: 100%;
+    padding: 12px;
+    border-radius: 10px;
+    border: 1px solid #333;
+    background: #1a1d24;
+    color: #fff;
+    font-size: 14px;
+    resize: vertical;
+    font-family: inherit;
+  }
+  #resumeText { min-height: 220px; }
+  #question { min-height: 90px; }
+  button {
+    width: 100%;
+    margin-top: 10px;
+    padding: 14px;
+    border: none;
+    border-radius: 10px;
+    background: #2563eb;
+    color: white;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:disabled { background: #374151; }
+  button.secondary {
+    background: #1a1d24;
+    border: 1px solid #333;
+    color: #9ca3af;
+    font-weight: 500;
+    font-size: 13px;
+    padding: 8px;
+  }
+  #answer {
+    margin-top: 16px;
+    padding: 14px;
+    border-radius: 10px;
+    background: #14201a;
+    border: 1px solid #1f3d2c;
+    min-height: 60px;
+    white-space: pre-wrap;
+    line-height: 1.5;
+  }
+  #status { font-size: 13px; color: #9ca3af; margin-top: 6px; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+  .resume-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #1a1d24;
+    border: 1px solid #333;
+    margin-bottom: 14px;
+    font-size: 13px;
+  }
+  .resume-banner span { color: #9ca3af; }
+  .resume-banner a { color: #7dd3fc; text-decoration: none; cursor: pointer; }
+  .hint { font-size: 12px; color: #6b7280; margin-top: 6px; line-height: 1.4; }
+</style>
+</head>
+<body>
+
+  <!-- Screen 1: resume input -->
+  <div id="resumeScreen" class="screen active">
+    <h1>📋 Candidate Resume</h1>
+    <div class="subtitle">Paste the resume — the LLM will answer based only on these facts, without inventing experience</div>
+    <textarea id="resumeText" placeholder="Paste the resume text here: full name, positions, ships, companies, dates, certificates, work experience..."></textarea>
+    <div class="hint">The more detailed the resume, the more accurate and confident the suggestions will be. Include real ship names, companies, ship types, certificates (STCW etc.), and voyage dates.</div>
+    <button id="saveResumeBtn">Save resume and start</button>
+    <div id="resumeStatus" style="font-size:13px; color:#9ca3af; margin-top:8px;"></div>
+  </div>
+
+  <!-- Screen 2: question and answer -->
+  <div id="qaScreen" class="screen">
+    <h1>🎙️ Interview Prompter — prototype (text)</h1>
+    <div class="resume-banner">
+      <span id="resumeInfo">Resume loaded</span>
+      <a id="editResumeLink">Edit resume</a>
+    </div>
+    <textarea id="question" placeholder="Type the interviewer's question..."></textarea>
+    <button id="sendBtn">Get suggestion</button>
+    <div id="status"></div>
+    <div id="answer">The answer will appear here</div>
+  </div>
+
+  <script>
+    const resumeScreen = document.getElementById('resumeScreen');
+    const qaScreen = document.getElementById('qaScreen');
+    const resumeText = document.getElementById('resumeText');
+    const saveResumeBtn = document.getElementById('saveResumeBtn');
+    const resumeStatus = document.getElementById('resumeStatus');
+    const resumeInfo = document.getElementById('resumeInfo');
+    const editResumeLink = document.getElementById('editResumeLink');
+
+    const questionEl = document.getElementById('question');
+    const sendBtn = document.getElementById('sendBtn');
+    const answerEl = document.getElementById('answer');
+    const statusEl = document.getElementById('status');
+
+    function showScreen(screen) {
+      resumeScreen.classList.remove('active');
+      qaScreen.classList.remove('active');
+      screen.classList.add('active');
+    }
+
+    // On page load, check whether a resume is already saved on the server
+    async function init() {
+      try {
+        const res = await fetch('/api/resume');
+        const data = await res.json();
+        if (data.resume && data.resume.trim()) {
+          resumeText.value = data.resume;
+          resumeInfo.textContent = `Resume loaded (${data.resume.length} characters)`;
+          showScreen(qaScreen);
+        }
+      } catch (err) {
+        console.error('Failed to load resume:', err);
+      }
+    }
+    init();
+
+    async function saveResume() {
+      const resume = resumeText.value.trim();
+      if (!resume) {
+        resumeStatus.textContent = 'Resume cannot be empty';
+        return;
+      }
+
+      saveResumeBtn.disabled = true;
+      resumeStatus.textContent = 'Saving...';
+
+      try {
+        const res = await fetch('/api/resume', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ resume })
+        });
+        const data = await res.json();
+
+        if (!res.ok) throw new Error(data.error || 'Save failed');
+
+        resumeInfo.textContent = `Resume loaded (${data.length} characters)`;
+        showScreen(qaScreen);
+      } catch (err) {
+        resumeStatus.textContent = 'Error: ' + err.message;
+      } finally {
+        saveResumeBtn.disabled = false;
+      }
+    }
+
+    saveResumeBtn.addEventListener('click', saveResume);
+    editResumeLink.addEventListener('click', () => showScreen(resumeScreen));
+
+    async function askQuestion() {
+      const question = questionEl.value.trim();
+      if (!question) return;
+
+      sendBtn.disabled = true;
+      statusEl.textContent = 'Thinking...';
+      answerEl.textContent = '';
+
+      try {
+        const res = await fetch('/api/answer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || 'Unknown error');
+        }
+
+        answerEl.textContent = data.answer;
+        statusEl.textContent = '';
+      } catch (err) {
+        answerEl.textContent = '';
+        statusEl.textContent = 'Error: ' + err.message;
+      } finally {
+        sendBtn.disabled = false;
+      }
+    }
+
+    sendBtn.addEventListener('click', askQuestion);
+    questionEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        askQuestion();
+      }
+    });
+  </script>
+</body>
+</html>
